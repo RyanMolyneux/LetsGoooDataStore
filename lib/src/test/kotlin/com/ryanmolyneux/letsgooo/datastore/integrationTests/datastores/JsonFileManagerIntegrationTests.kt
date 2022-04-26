@@ -9,6 +9,7 @@ import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import java.io.File
 import java.io.FileReader
@@ -101,6 +102,150 @@ class JsonFileManagerIntegrationTests {
         Assert.assertEquals(stringRecordPairsExpectedToBeInJsonDatastore[day6Record]!!.name, stringRecordPairsReadFromJsonDatastore[day6Record]!!.name);
 
         Mockito.verify(fileReaderSpy, times(1)).close();
+    }
+
+    @Test
+    fun testCase4_coversTestPlanTestCondition4() {
+        val datastoreFileToTestWith = File(URI("file:///tmp/testJsonDatastore4.json").path);
+        val datastoreDataIntegrityProtectionFileExpectedToExistOnceDatastoreFileIsCreated = File(URI("file:///tmp/testJsonDatastore4DataIntegrityProtectionDatastore.json").path);
+        val jsonFileManagerToTestWith: JsonFileManager<String,Record>;
+        val jsonFileManagerTypeToStore = object: TypeToken<MutableMap<String,Record>>() {}.type
+
+        Assert.assertFalse(datastoreFileToTestWith.exists());
+        Assert.assertFalse(datastoreDataIntegrityProtectionFileExpectedToExistOnceDatastoreFileIsCreated.exists())
+
+        jsonFileManagerToTestWith = JsonFileManager<String, Record>(datastoreFileToTestWith.toURI().toString(), Gson(), jsonFileManagerTypeToStore);
+
+        Assert.assertTrue(datastoreFileToTestWith.exists());
+        Assert.assertTrue(datastoreDataIntegrityProtectionFileExpectedToExistOnceDatastoreFileIsCreated.exists());
+
+        deleteFile(datastoreFileToTestWith.path)
+        deleteFile(datastoreDataIntegrityProtectionFileExpectedToExistOnceDatastoreFileIsCreated.path)
+    }
+
+    @Test
+    fun testCase5_coversTestPlanTestCondition5() {
+        val datastoreFileUriToTestWith = "file:///tmp/testJsonDatastore5.json"
+        val datastoreFileToTestWith = File(URI(datastoreFileUriToTestWith).path);
+        val jsonFileManagerToTestWith: JsonFileManager<String, Record>;
+        val typeOfDataForJsonFileManagerToStore = object: TypeToken<MutableMap<String, Record>>() {}.type
+        val mapOfStringAndRecordsToTestIfTheyWillBePersisted = HashMap<String, Record>();
+        val keyOfEntryOneExpectedToBePersisted = "TestEntry1";
+        val keyOfEntryTwoExpectedToBePersisted = "TestEntry2";
+        val valueOfEntryOneExpectedToBePersisted = Record("TestRecord1",
+                                                                arrayOf(Task("TestTask1", Task.TASK_STATUS_PENDING)));
+        val valueOfEntryTwoExpectedToBePersisted = Record( "TestRecord2", arrayOf());
+        val actualMapOfStringRecordPairingsPersistedByAndRetrievedFromJsonFileManager: Map<String, Record>
+        val actualPersistedValueOfEntryOne: Record
+        val actualPersistedValueOfEntryTwo: Record
+
+        deleteFile(datastoreFileToTestWith.path)
+
+        mapOfStringAndRecordsToTestIfTheyWillBePersisted.put(keyOfEntryOneExpectedToBePersisted, valueOfEntryOneExpectedToBePersisted);
+        mapOfStringAndRecordsToTestIfTheyWillBePersisted.put(keyOfEntryTwoExpectedToBePersisted, valueOfEntryTwoExpectedToBePersisted);
+
+        Assert.assertFalse(datastoreFileToTestWith.exists())
+
+        jsonFileManagerToTestWith = JsonFileManager(datastoreFileUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore);
+
+        jsonFileManagerToTestWith.merge(mapOfStringAndRecordsToTestIfTheyWillBePersisted, listOf(keyOfEntryOneExpectedToBePersisted, keyOfEntryTwoExpectedToBePersisted));
+
+        actualMapOfStringRecordPairingsPersistedByAndRetrievedFromJsonFileManager = jsonFileManagerToTestWith.read()
+
+
+        Assert.assertTrue(actualMapOfStringRecordPairingsPersistedByAndRetrievedFromJsonFileManager.contains(keyOfEntryOneExpectedToBePersisted));
+        Assert.assertTrue(actualMapOfStringRecordPairingsPersistedByAndRetrievedFromJsonFileManager.contains(keyOfEntryTwoExpectedToBePersisted));
+
+        actualPersistedValueOfEntryOne = actualMapOfStringRecordPairingsPersistedByAndRetrievedFromJsonFileManager.get(keyOfEntryOneExpectedToBePersisted)!!;
+
+        Assert.assertEquals(valueOfEntryOneExpectedToBePersisted.name, actualPersistedValueOfEntryOne.name)
+        Assert.assertEquals(valueOfEntryOneExpectedToBePersisted.tasksOnRecord[0].name, actualPersistedValueOfEntryOne.tasksOnRecord[0].name)
+        Assert.assertEquals(valueOfEntryOneExpectedToBePersisted.tasksOnRecord[0].currentStatus, actualPersistedValueOfEntryOne.tasksOnRecord[0].currentStatus)
+
+        actualPersistedValueOfEntryTwo = actualMapOfStringRecordPairingsPersistedByAndRetrievedFromJsonFileManager.get(keyOfEntryTwoExpectedToBePersisted)!!;
+
+        Assert.assertEquals(valueOfEntryTwoExpectedToBePersisted.name, actualPersistedValueOfEntryTwo.name);
+        Assert.assertEquals(valueOfEntryTwoExpectedToBePersisted.tasksOnRecord.size, actualPersistedValueOfEntryTwo.tasksOnRecord.size);
+
+    }
+
+    @Test
+    fun testCase6_coversTestPlanTestCondition6() {
+        val datastoreUriToTestWith = "file:///tmp/testJsonDatastore6.json";
+        val typeOfDataForJsonFileManagerToStore = object: TypeToken<MutableMap<String, Record>>() {}.type
+        val keyOfPrexistingEntryOne = "TestEntry1";
+        val valueOfPrexistingEntryOne = Record(keyOfPrexistingEntryOne, arrayOf( Task("Task1", Task.TASK_STATUS_PENDING) ) );
+        val keyOfPrexistingEntryTwo = "TestEntry456";
+        val valueOfPreexistingEntryTwo = Record(keyOfPrexistingEntryTwo, arrayOf( Task("Task789", Task.TASK_STATUS_COMPLETE) ));
+        val mapOfPrexistingEntriesDatastoreIsExpectedToHave = mutableMapOf<String, Record>( Pair(keyOfPrexistingEntryOne, valueOfPrexistingEntryOne),
+                                                                                            Pair(keyOfPrexistingEntryTwo, valueOfPreexistingEntryTwo) );
+        val jsonFileManager1: JsonFileManager<String,Record>;
+        val keyOfEntryThreeForJsonFileManager1ToAdd = "TestEntry101112";
+        val valueOfEntryThreeForJsonFileManagerToAdd = Record(keyOfEntryThreeForJsonFileManager1ToAdd, arrayOf( Task("62", Task.TASK_STATUS_PENDING) ))
+        val keyOfEntryFourForJsonFileManager1ToAdd = "TestEntry74";
+        val valueOfEntryFourForJsonFileManager1ToAdd = Record(keyOfEntryFourForJsonFileManager1ToAdd, arrayOf());
+        val jsonFileManager2: JsonFileManager<String, Record>;
+        val updatedValueOfEntryTwoForJsonFileManager2ToAdd = Record(keyOfPrexistingEntryTwo, arrayOf( Task("Task789", Task.TASK_STATUS_COMPLETE),
+                                                                                                      Task( "Task94", Task.TASK_STATUS_PENDING)  ))
+        val actualPersistedPairsOfDatastoreDataPostBothMergeCalls: Map<String, Record>;
+
+        deleteFile(URI(datastoreUriToTestWith).path);
+
+        JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore).apply {
+            write(mapOfPrexistingEntriesDatastoreIsExpectedToHave);
+        }
+
+        jsonFileManager1 = Mockito.spy(JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore));
+        jsonFileManager2 = Mockito.spy(JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore));
+
+        Mockito.doReturn(jsonFileManager1.getNewFileReader()).`when`(jsonFileManager1).getNewFileReader()
+        Mockito.doReturn(jsonFileManager2.getNewFileReader()).`when`(jsonFileManager2).getNewFileReader()
+
+        val jsonFileManager1InMemoryCopyOfDatastoreDataToMerge = mutableMapOf( Pair(keyOfPrexistingEntryOne, valueOfPrexistingEntryOne),
+                                                                               Pair(keyOfPrexistingEntryTwo, valueOfPreexistingEntryTwo),
+                                                                               Pair(keyOfEntryThreeForJsonFileManager1ToAdd, valueOfEntryThreeForJsonFileManagerToAdd),
+                                                                               Pair(keyOfEntryFourForJsonFileManager1ToAdd, valueOfEntryFourForJsonFileManager1ToAdd)
+        );
+
+
+
+        jsonFileManager1.merge(jsonFileManager1InMemoryCopyOfDatastoreDataToMerge, listOf(keyOfEntryThreeForJsonFileManager1ToAdd, keyOfEntryFourForJsonFileManager1ToAdd));
+
+        val jsonFileManager2InMemoryCopyOfDatatoreDataToMerge = mutableMapOf<String, Record>( Pair(keyOfPrexistingEntryTwo, updatedValueOfEntryTwoForJsonFileManager2ToAdd) );
+
+        jsonFileManager2.merge(jsonFileManager2InMemoryCopyOfDatatoreDataToMerge, listOf(keyOfPrexistingEntryOne, keyOfPrexistingEntryTwo));
+
+
+
+     //   Mockito.verify(jsonFileManager1, times(0)).read();
+        Mockito.verify(jsonFileManager2, times(1)).read();
+
+        actualPersistedPairsOfDatastoreDataPostBothMergeCalls = JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore).read()
+
+        Assert.assertFalse(actualPersistedPairsOfDatastoreDataPostBothMergeCalls.contains(keyOfPrexistingEntryOne));
+        Assert.assertTrue(actualPersistedPairsOfDatastoreDataPostBothMergeCalls.containsKey(keyOfPrexistingEntryTwo));
+
+        val actualValueOfEntryTwo = actualPersistedPairsOfDatastoreDataPostBothMergeCalls.get(keyOfPrexistingEntryTwo);
+
+        Assert.assertEquals(updatedValueOfEntryTwoForJsonFileManager2ToAdd.name, actualValueOfEntryTwo!!.name)
+        Assert.assertEquals(updatedValueOfEntryTwoForJsonFileManager2ToAdd.tasksOnRecord[0].name, actualValueOfEntryTwo!!.tasksOnRecord[0].name)
+        Assert.assertEquals(updatedValueOfEntryTwoForJsonFileManager2ToAdd.tasksOnRecord[0].currentStatus, actualValueOfEntryTwo!!.tasksOnRecord[0].currentStatus)
+        Assert.assertEquals(updatedValueOfEntryTwoForJsonFileManager2ToAdd.tasksOnRecord[1].name, actualValueOfEntryTwo!!.tasksOnRecord[1].name)
+        Assert.assertEquals(updatedValueOfEntryTwoForJsonFileManager2ToAdd.tasksOnRecord[1].currentStatus, actualValueOfEntryTwo!!.tasksOnRecord[1].currentStatus)
+
+        val actualValueOfEntryThree = actualPersistedPairsOfDatastoreDataPostBothMergeCalls.get(keyOfEntryThreeForJsonFileManager1ToAdd);
+
+        Assert.assertEquals(valueOfEntryThreeForJsonFileManagerToAdd.name, actualValueOfEntryThree!!.name)
+        Assert.assertEquals(valueOfEntryThreeForJsonFileManagerToAdd.tasksOnRecord[0].name, actualValueOfEntryThree!!.tasksOnRecord[0].name)
+        Assert.assertEquals(valueOfEntryThreeForJsonFileManagerToAdd.tasksOnRecord[0].currentStatus, actualValueOfEntryThree!!.tasksOnRecord[0].currentStatus);
+        Assert.assertEquals(valueOfEntryThreeForJsonFileManagerToAdd.tasksOnRecord.size, actualValueOfEntryThree.tasksOnRecord.size);
+
+        val actualValueOfEntryFour = actualPersistedPairsOfDatastoreDataPostBothMergeCalls.get(keyOfEntryFourForJsonFileManager1ToAdd);
+
+        Assert.assertEquals(valueOfEntryFourForJsonFileManager1ToAdd.name, actualValueOfEntryFour!!.name);
+        Assert.assertEquals(valueOfEntryFourForJsonFileManager1ToAdd.tasksOnRecord.size, actualValueOfEntryFour!!.tasksOnRecord.size)
+
+        // TODO: Define how merge should behave in case of first execution as current understanding is flawed.
     }
 
     fun deleteFile(pathToFile: String) {

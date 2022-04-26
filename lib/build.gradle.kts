@@ -5,6 +5,7 @@
  * For more details take a look at the 'Building Java & JVM projects' chapter in the Gradle
  * User Manual available at https://docs.gradle.org/6.7.1/userguide/building_java_projects.html
  */
+val letsGoooDatastoreVersion = "1.1.0";
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.3.72"
