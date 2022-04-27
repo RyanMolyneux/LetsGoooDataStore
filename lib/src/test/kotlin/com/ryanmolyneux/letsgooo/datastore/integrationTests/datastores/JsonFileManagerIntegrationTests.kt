@@ -188,18 +188,15 @@ class JsonFileManagerIntegrationTests {
         val updatedValueOfEntryTwoForJsonFileManager2ToAdd = Record(keyOfPrexistingEntryTwo, arrayOf( Task("Task789", Task.TASK_STATUS_COMPLETE),
                                                                                                       Task( "Task94", Task.TASK_STATUS_PENDING)  ))
         val actualPersistedPairsOfDatastoreDataPostBothMergeCalls: Map<String, Record>;
-
+        val gson = Gson()
         deleteFile(URI(datastoreUriToTestWith).path);
 
-        JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore).apply {
+        JsonFileManager<String, Record>(datastoreUriToTestWith, gson, typeOfDataForJsonFileManagerToStore).apply {
             write(mapOfPrexistingEntriesDatastoreIsExpectedToHave);
         }
 
-        jsonFileManager1 = Mockito.spy(JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore));
-        jsonFileManager2 = Mockito.spy(JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore));
-
-        Mockito.doReturn(jsonFileManager1.getNewFileReader()).`when`(jsonFileManager1).getNewFileReader()
-        Mockito.doReturn(jsonFileManager2.getNewFileReader()).`when`(jsonFileManager2).getNewFileReader()
+        jsonFileManager1 = Mockito.spy(JsonFileManager<String, Record>(datastoreUriToTestWith, gson, typeOfDataForJsonFileManagerToStore));
+        jsonFileManager2 = Mockito.spy(JsonFileManager<String, Record>(datastoreUriToTestWith, gson, typeOfDataForJsonFileManagerToStore));
 
         val jsonFileManager1InMemoryCopyOfDatastoreDataToMerge = mutableMapOf( Pair(keyOfPrexistingEntryOne, valueOfPrexistingEntryOne),
                                                                                Pair(keyOfPrexistingEntryTwo, valueOfPreexistingEntryTwo),
@@ -214,11 +211,6 @@ class JsonFileManagerIntegrationTests {
         val jsonFileManager2InMemoryCopyOfDatatoreDataToMerge = mutableMapOf<String, Record>( Pair(keyOfPrexistingEntryTwo, updatedValueOfEntryTwoForJsonFileManager2ToAdd) );
 
         jsonFileManager2.merge(jsonFileManager2InMemoryCopyOfDatatoreDataToMerge, listOf(keyOfPrexistingEntryOne, keyOfPrexistingEntryTwo));
-
-
-
-     //   Mockito.verify(jsonFileManager1, times(0)).read();
-        Mockito.verify(jsonFileManager2, times(1)).read();
 
         actualPersistedPairsOfDatastoreDataPostBothMergeCalls = JsonFileManager<String, Record>(datastoreUriToTestWith, Gson(), typeOfDataForJsonFileManagerToStore).read()
 
@@ -244,8 +236,6 @@ class JsonFileManagerIntegrationTests {
 
         Assert.assertEquals(valueOfEntryFourForJsonFileManager1ToAdd.name, actualValueOfEntryFour!!.name);
         Assert.assertEquals(valueOfEntryFourForJsonFileManager1ToAdd.tasksOnRecord.size, actualValueOfEntryFour!!.tasksOnRecord.size)
-
-        // TODO: Define how merge should behave in case of first execution as current understanding is flawed.
     }
 
     fun deleteFile(pathToFile: String) {
