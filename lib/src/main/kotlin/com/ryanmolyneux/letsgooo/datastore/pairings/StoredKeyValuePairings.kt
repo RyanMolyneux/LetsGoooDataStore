@@ -13,21 +13,21 @@ class StoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: KeyValuePairings<Ke
 
     override fun createPairing(keyOfPairToBeCreated: Key, valueToBeAdded: Value) {
         super.createPairing(keyOfPairToBeCreated, valueToBeAdded);
-        store();
+        store(listOf(keyOfPairToBeCreated));
     }
 
     override fun updatePairingsValue(keyValueIsPairedWith: Key, newValueToPairKeyWith: Value) {
         super.updatePairingsValue(keyValueIsPairedWith, newValueToPairKeyWith)
-        store();
+        store(listOf(keyValueIsPairedWith));
     }
 
     override fun deletePairing(keyValueIsPairedWith: Key) {
         super.deletePairing(keyValueIsPairedWith)
-        store();
+        store(listOf(keyValueIsPairedWith));
     }
 
-    private fun store() {
-        jsonFileManager.write(getWrappedMap());
+    private fun store(listOfKeysWhoseValuesHaveBeenUpdated: List<Key>) {
+        jsonFileManager.merge(getWrappedMap(), listOfKeysWhoseValuesHaveBeenUpdated);
     }
 
     private fun retrieve() {
