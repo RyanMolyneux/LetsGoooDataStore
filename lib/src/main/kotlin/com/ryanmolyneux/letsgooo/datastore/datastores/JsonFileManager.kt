@@ -19,7 +19,7 @@ open class JsonFileManager<Key, Value: AbsDatastoreEntry>: AbsFileManager {
                 }
     private lateinit var gson: Gson;
     private var typeBeingStored: Type;
-    private var lastMergeTimeMilliseconds: Long = DEFAULT_LAST_MERGE_TIME_SECONDS;
+    private var lastMergeTimeSeconds: Long = DEFAULT_LAST_MERGE_TIME_SECONDS;
     private val DATA_INTEGRITY_PROTECTION_DATASTORE_SUFFIX = "DataIntegrityProtectionDatastore";
 
     constructor(datastoreUri: String, gson: Gson, typeBeingStored: Type): super(datastoreUri) {
@@ -66,7 +66,7 @@ open class JsonFileManager<Key, Value: AbsDatastoreEntry>: AbsFileManager {
         val jsonFileManagerDataIntegrityProtectionDatastoreFileWriter: FileWriter
         var combinedMapToBePersistedToDatastore: MutableMap<Key, Value> = modifiedInMemoryCopyOfKeyValueDatastoreContent.toMutableMap()
 
-        if (lastMergeTimeMilliseconds != jsonFileManagerDataIntegrityProtectionDatastoreData.persistedLastMergeTimeMilliseconds) {
+        if (lastMergeTimeSeconds != jsonFileManagerDataIntegrityProtectionDatastoreData.persistedLastMergeTimeSeconds) {
             combinedMapToBePersistedToDatastore = read()
 
             for (keyWhoseValueHasChanged in keysWhosePairedValueHaveBeenChanged) {
@@ -80,11 +80,11 @@ open class JsonFileManager<Key, Value: AbsDatastoreEntry>: AbsFileManager {
 
         write(combinedMapToBePersistedToDatastore);
 
-        lastMergeTimeMilliseconds = Instant.now().epochSecond
+        lastMergeTimeSeconds = Instant.now().epochSecond
 
         jsonFileManagerDataIntegrityProtectionDatastoreFileWriter = FileWriter(jsonFileManagerDataIntegrityProtectionDatastoreURI.path)
 
-        jsonFileManagerDataIntegrityProtectionDatastoreFileWriter.write(gson.toJson(JsonFileManagerDataIntegrityProtectionData(lastMergeTimeMilliseconds)));
+        jsonFileManagerDataIntegrityProtectionDatastoreFileWriter.write(gson.toJson(JsonFileManagerDataIntegrityProtectionData(lastMergeTimeSeconds)));
 
         jsonFileManagerDataIntegrityProtectionDatastoreFileWriter.close()
     }
@@ -100,5 +100,5 @@ open class JsonFileManager<Key, Value: AbsDatastoreEntry>: AbsFileManager {
         return jsonDatastoreContentsInMapFormat;
     }
 
-    private data class JsonFileManagerDataIntegrityProtectionData(val persistedLastMergeTimeMilliseconds: Long)
+    private data class JsonFileManagerDataIntegrityProtectionData(val persistedLastMergeTimeSeconds: Long)
 }
