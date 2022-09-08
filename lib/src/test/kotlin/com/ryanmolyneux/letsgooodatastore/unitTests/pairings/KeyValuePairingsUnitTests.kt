@@ -1,11 +1,11 @@
-package com.ryanmolyneux.letsgooo.datastore.unitTests.pairings
+package com.ryanmolyneux.letsgooodatastore.unitTests.pairings
 
 import org.junit.Test;
 import org.junit.Assert;
 
-import com.ryanmolyneux.letsgooo.datastore.pairings.KeyValuePairings;
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.Record;
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.Task;
+import com.ryanmolyneux.letsgooodatastore.pairings.KeyValuePairings;
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.Record;
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.Task;
 
 class KeyValuePairingsUnitTests {
 

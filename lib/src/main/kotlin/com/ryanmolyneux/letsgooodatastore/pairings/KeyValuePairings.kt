@@ -1,4 +1,4 @@
-package com.ryanmolyneux.letsgooo.datastore.pairings
+package com.ryanmolyneux.letsgooodatastore.pairings
 
 open class KeyValuePairings<Key, Value>: IKeyValuePairings<Key, Value> {
     private lateinit var wrappedMap: MutableMap<Key, Value>;

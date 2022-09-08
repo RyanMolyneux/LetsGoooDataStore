@@ -1,8 +1,8 @@
-package com.ryanmolyneux.letsgooo.datastore.datastores
+package com.ryanmolyneux.letsgooodatastore.datastores
 
 import com.google.gson.Gson;
 
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.AbsDatastoreEntry
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.AbsDatastoreEntry
 
 import java.io.File;
 import java.io.FileReader
@@ -35,7 +35,9 @@ open class JsonFileManager<Key, Value: AbsDatastoreEntry>: AbsFileManager {
             val dataIntegrityProtectionFileWriter = FileWriter(File(URI(getDataIntegrityProtectionDatastoreUri()).path));
 
             datastoreFileWriter.write("{}");
-            dataIntegrityProtectionFileWriter.write(gson.toJson(JsonFileManagerDataIntegrityProtectionData(DEFAULT_LAST_MERGE_TIME_SECONDS)));
+            dataIntegrityProtectionFileWriter.write(gson.toJson(
+                JsonFileManagerDataIntegrityProtectionData(DEFAULT_LAST_MERGE_TIME_SECONDS)
+            ));
 
             datastoreFileWriter.close();
             dataIntegrityProtectionFileWriter.close()
@@ -84,7 +86,9 @@ open class JsonFileManager<Key, Value: AbsDatastoreEntry>: AbsFileManager {
 
         jsonFileManagerDataIntegrityProtectionDatastoreFileWriter = FileWriter(jsonFileManagerDataIntegrityProtectionDatastoreURI.path)
 
-        jsonFileManagerDataIntegrityProtectionDatastoreFileWriter.write(gson.toJson(JsonFileManagerDataIntegrityProtectionData(lastMergeTimeSeconds)));
+        jsonFileManagerDataIntegrityProtectionDatastoreFileWriter.write(gson.toJson(
+            JsonFileManagerDataIntegrityProtectionData(lastMergeTimeSeconds)
+        ));
 
         jsonFileManagerDataIntegrityProtectionDatastoreFileWriter.close()
     }

@@ -1,4 +1,4 @@
-package com.ryanmolyneux.letsgooo.datastore.datastores
+package com.ryanmolyneux.letsgooodatastore.datastores
 
 abstract class AbsDatastoreManager {
     private lateinit var datastoreUri: String;

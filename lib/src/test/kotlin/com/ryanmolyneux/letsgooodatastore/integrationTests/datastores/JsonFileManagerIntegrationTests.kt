@@ -1,15 +1,14 @@
-package com.ryanmolyneux.letsgooo.datastore.integrationTests.datastores
+package com.ryanmolyneux.letsgooodatastore.integrationTests.datastores
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.ryanmolyneux.letsgooo.datastore.datastores.JsonFileManager
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.Record
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.Task
+import com.ryanmolyneux.letsgooodatastore.datastores.JsonFileManager
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.Record
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.Task
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
-import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import java.io.File
 import java.io.FileReader
@@ -108,8 +107,8 @@ class JsonFileManagerIntegrationTests {
     fun testCase4_coversTestPlanTestCondition4() {
         val datastoreFileToTestWith = File(URI("file:///tmp/testJsonDatastore4.json").path);
         val datastoreDataIntegrityProtectionFileExpectedToExistOnceDatastoreFileIsCreated = File(URI("file:///tmp/testJsonDatastore4DataIntegrityProtectionDatastore.json").path);
-        val jsonFileManagerToTestWith: JsonFileManager<String,Record>;
-        val jsonFileManagerTypeToStore = object: TypeToken<MutableMap<String,Record>>() {}.type
+        val jsonFileManagerToTestWith: JsonFileManager<String, Record>;
+        val jsonFileManagerTypeToStore = object: TypeToken<MutableMap<String, Record>>() {}.type
 
         Assert.assertFalse(datastoreFileToTestWith.exists());
         Assert.assertFalse(datastoreDataIntegrityProtectionFileExpectedToExistOnceDatastoreFileIsCreated.exists())
@@ -179,7 +178,7 @@ class JsonFileManagerIntegrationTests {
         val valueOfPreexistingEntryTwo = Record(keyOfPrexistingEntryTwo, arrayOf( Task("Task789", Task.TASK_STATUS_COMPLETE) ));
         val mapOfPrexistingEntriesDatastoreIsExpectedToHave = mutableMapOf<String, Record>( Pair(keyOfPrexistingEntryOne, valueOfPrexistingEntryOne),
                                                                                             Pair(keyOfPrexistingEntryTwo, valueOfPreexistingEntryTwo) );
-        val jsonFileManager1: JsonFileManager<String,Record>;
+        val jsonFileManager1: JsonFileManager<String, Record>;
         val keyOfEntryThreeForJsonFileManager1ToAdd = "TestEntry101112";
         val valueOfEntryThreeForJsonFileManagerToAdd = Record(keyOfEntryThreeForJsonFileManager1ToAdd, arrayOf( Task("62", Task.TASK_STATUS_PENDING) ))
         val keyOfEntryFourForJsonFileManager1ToAdd = "TestEntry74";

@@ -1,4 +1,4 @@
-package com.ryanmolyneux.letsgooo.datastore.datastores
+package com.ryanmolyneux.letsgooodatastore.datastores
 
 import java.io.FileWriter;
 import java.io.FileReader;

@@ -1,4 +1,4 @@
-package com.ryanmolyneux.letsgooo.datastore.pairings
+package com.ryanmolyneux.letsgooodatastore.pairings
 
 interface IKeyValuePairings<Key, Value>: IPairings<Key, Value> {
     override fun createPairing(key: Key, value: Value);

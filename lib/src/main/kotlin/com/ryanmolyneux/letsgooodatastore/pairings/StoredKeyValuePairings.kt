@@ -1,7 +1,7 @@
-package com.ryanmolyneux.letsgooo.datastore.pairings
+package com.ryanmolyneux.letsgooodatastore.pairings
 
-import com.ryanmolyneux.letsgooo.datastore.datastores.JsonFileManager;
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.AbsDatastoreEntry
+import com.ryanmolyneux.letsgooodatastore.datastores.JsonFileManager;
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.AbsDatastoreEntry
 
 class StoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: KeyValuePairings<Key, Value> {
     private val jsonFileManager: JsonFileManager<Key, Value>;

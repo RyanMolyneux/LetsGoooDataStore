@@ -8,9 +8,9 @@
 val letsGoooDatastoreVersion = "1.1.0";
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.3.72"
-
-    `java-library`
+    id("org.jetbrains.kotlin.jvm") version "1.7.10"
+    id("java-library")
+    id("maven-publish")
 }
 
 repositories {
@@ -44,18 +44,41 @@ java {
 dependencies {
     // Align versions of all Kotlin components
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
-
-    // Use the Kotlin JDK 8 standard library.
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-
     implementation("com.google.code.gson:gson:2.8.7")
 
     // Use the Kotlin test library.
     testImplementation("org.jetbrains.kotlin:kotlin-test")
-
-    // Use the Kotlin JUnit integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
-
     testImplementation("org.mockito:mockito-core:3.12.4")
+}
 
+publishing {
+    repositories {
+        maven {
+            name = "MajorProductions"
+            url = uri("https://maven.pkg.github.com/RyanMolyneux/MajorProductions")
+            credentials {
+                username = System.getenv("GIT_USERNAME")
+                password = System.getenv("GIT_PUBLISH_PACKAGE_TOKEN")
+            }
+        }
+    }
+    publications {
+        register<MavenPublication>("release") {
+            artifactId = "letsgooodatastore"
+            groupId = "com.ryanmolyneux"
+            version = letsGoooDatastoreVersion
+            artifact("$buildDir/libs/lib.jar")
+            pom.withXml {
+                val dependenciesNode = asNode().appendNode("dependencies")
+                configurations.api.get().allDependencies.forEach {
+                    val dependencyNode = dependenciesNode.appendNode("dependency")
+                    dependencyNode.appendNode("groupId", it.group)
+                    dependencyNode.appendNode("artifactId", it.name)
+                    dependencyNode.appendNode("version", it.version)
+                }
+            }
+        }
+    }
 }

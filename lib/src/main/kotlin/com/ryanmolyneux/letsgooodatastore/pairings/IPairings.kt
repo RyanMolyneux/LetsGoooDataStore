@@ -1,4 +1,4 @@
-package com.ryanmolyneux.letsgooo.datastore.pairings
+package com.ryanmolyneux.letsgooodatastore.pairings
 
 interface IPairings<FirstThing, SecondThing> {
     fun createPairing(firstThing: FirstThing, secondThing: SecondThing);

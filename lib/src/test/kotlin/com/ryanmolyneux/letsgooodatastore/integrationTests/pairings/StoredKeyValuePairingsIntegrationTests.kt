@@ -1,13 +1,13 @@
-package com.ryanmolyneux.letsgooo.datastore.integrationTests.pairings
+package com.ryanmolyneux.letsgooodatastore.integrationTests.pairings
 
 import org.junit.Before;
 import org.junit.Test
 import org.junit.Assert;
 
-import com.ryanmolyneux.letsgooo.datastore.pairings.StoredKeyValuePairings;
-import com.ryanmolyneux.letsgooo.datastore.datastores.JsonFileManager;
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.Record;
-import com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries.Task;
+import com.ryanmolyneux.letsgooodatastore.pairings.StoredKeyValuePairings;
+import com.ryanmolyneux.letsgooodatastore.datastores.JsonFileManager;
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.Record;
+import com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries.Task;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken
@@ -40,9 +40,11 @@ class StoredKeyValuePairingsIntegrationTests {
 
     @Test
     fun testCase2_coversTestPlanTestCondition2() {
-        val arrayOfRecordsExpectedToBeRetrievedFromJsonDatastore = arrayOf(Record("Day1", null),
+        val arrayOfRecordsExpectedToBeRetrievedFromJsonDatastore = arrayOf(
+            Record("Day1", null),
                 Record("Day2", null),
-                Record("Day3", null));
+                Record("Day3", null)
+        );
         val actualArrayOfRecordsRetrievedFromJsonDatastore: Array<Record>;
         val typeOfDataBeingStored = object: TypeToken<MutableMap<String, Record>>() {}.type;
         val jsonFileManager = JsonFileManager<String, Record>(jsonDatastoreUri, Gson(), typeOfDataBeingStored);

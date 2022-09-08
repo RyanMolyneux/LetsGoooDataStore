@@ -1,4 +1,4 @@
-package com.ryanmolyneux.letsgooo.datastore.datastores.datastoreentries;
+package com.ryanmolyneux.letsgooodatastore.datastores.datastoreentries;
 
 
 public class Task extends AbsDatastoreEntry {
