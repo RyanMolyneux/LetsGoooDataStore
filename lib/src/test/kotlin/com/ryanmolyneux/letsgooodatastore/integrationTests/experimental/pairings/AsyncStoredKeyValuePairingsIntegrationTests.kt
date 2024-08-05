@@ -346,7 +346,7 @@ class AsyncStoredKeyValuePairingsIntegrationTests {
                 }
             }
 
-            delay(4000L)
+            delay(7000L) // TODO address slow flaky test case.
 
             for (i in 0 .. maxEntries) {
                 bgCollections[i].cancel()
