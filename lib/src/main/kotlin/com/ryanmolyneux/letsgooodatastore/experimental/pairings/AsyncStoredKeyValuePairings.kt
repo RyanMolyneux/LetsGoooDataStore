@@ -19,17 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /** TODO
- *  Required
- *  --------
- *  1. Finish writing test cases. -> [PENDING]
- *  2. Make it so that data entries can be operationally recyled/deleted based on some
- *  conditional logic, e.g. max size reached last used/LU removal, or based on the current
- *  date time etc. -> [PENDING]
- *  3. Explore possibility of need to refactor JsonFileWriter to make it suspend during merge calls
- *  to prevent merge from failing when being used concurrently by 2 or more coroutines. -> [PENDING]
- *  4. Make sure that when max partitions is hit the store looks for a partition with available spaces
- *  before failing the operation. -> [PENDING]
- *  5. Implement usage of current + max entries(max partitions * max entries per partition) -> [PENDING]
+ *  1. Explore possibility of need to refactor JsonFileWriter to make it suspend during merge calls
+ *  to prevent merge from failing when being used concurrently by 2 or more coroutines.
+ *  2. Move max fifo queue entries up to policy so that all implementations are aware.
  */
 
 /**
@@ -62,7 +54,7 @@ interface IAsyncMutableKeyValuePairings<Key, Value: AbsDatastoreEntry>: IAsyncKe
     val currentNumberOfEntries: Long
 
     /**
-     * field holding max number of key->value entries that can be help by the given mutable key value pairings.
+     * field holding max number of key->value entries that can be held by the given mutable key value pairings.
      */
     val maxEntries: Long
 
@@ -74,9 +66,10 @@ interface IAsyncMutableKeyValuePairings<Key, Value: AbsDatastoreEntry>: IAsyncKe
     /**
      * To be used to create a key uniquely identifiable key to value pairings in the pair collection
      * updating an existing pairs value if one already exists, the prior operations ability to occur
-     * will vary based on what mutability state the key value pairings is currently in, any non
-     * mutable state resulting in calls during that time expected to result in no-op, suspending
-     * to account for scenarios where long running blocking operations can occur during writes ops.
+     * will vary based on what mutability state the key value pairings is currently in and whether
+     * or not max entries has been reached, any non mutable state resulting in calls during that
+     * time expected to result in no-op, suspending to account for scenarios where long running
+     * blocking operations can occur during writes ops.
      */
     suspend fun createPairing(key: Key, value: Value): Unit
 
@@ -174,13 +167,15 @@ interface TwoWayIterator<Value> {
 class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStoredKeyValuePairings<Key, Value> {
     private val READ_OP_NUM_OF_THREADS_IN_POOL = 4
     private val WRITE_OP_NUM_OF_THREADS_IN_POOL = 1 // TODO update with larger capacity once JsonFileWriter.merge is made thread safe.
-    private val WRITE_OP_PARTITION_RESIZE_AMOUNT = 20L
+    private val WRITE_OP_PARTITION_RESIZE_RATIO = 0.20
     private val writeOpQueueMaxCapacity: Int
     private var _currentNumberOfEntries = AtomicLong()
     override val currentNumberOfEntries: Long
         get() = _currentNumberOfEntries.get()
     private val maxPartitions: Long
     private val maxPartitionEntries: Long
+    private val resizePartitionEntries
+        get () = if ((maxPartitionEntries * WRITE_OP_PARTITION_RESIZE_RATIO).toInt() >= 2) (maxPartitionEntries * WRITE_OP_PARTITION_RESIZE_RATIO).toInt() else 2
     override val maxEntries: Long
         get() = (maxPartitions * maxPartitionEntries)
     override val mutabilityState: StateFlow<IAsyncMutableKeyValuePairings.MutabilityState>
@@ -222,8 +217,9 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
         this.maxPartitionEntries = maxPartitionEntries
         this.maxPartitions = maxPartitions
         this.writeOpQueueMaxCapacity = writeOpQueueMaxCapacity
-
         this.fifoPartitionWriteOpQueue = ArrayBlockingQueue(writeOpQueueMaxCapacity)
+
+        assert(maxPartitionEntries >= 4) { "Must have at least 4 or more entries for efficient operations." }
 
         val partitionType = object: TypeToken<Map<String, Partition>>() {}.type
 
@@ -246,7 +242,7 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
                 for(partition in partitions) {
                     val storedKeyValuePairings = StoredKeyValuePairings<Key, Value>(mutableMapOf(), JsonFileManager(toStoragePath(partition.id), Gson(), valueType))
 
-                    _currentNumberOfEntries.getAndAdd(storedKeyValuePairings.retrieveAllPairingsValues().size.toLong())
+                    _currentNumberOfEntries.getAndAdd(storedKeyValuePairings.retrieveAllPairingsValues().count().toLong())
 
                     if (!nonFullPartitionFound && storedKeyValuePairings.retrieveAllPairingsValues().count() < maxPartitionEntries) {
                         writePartition = Pair(partition, storedKeyValuePairings)
@@ -268,60 +264,89 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
 
                         if (it is WriteOp.UpdateOp) {
                             partitionToWriteTo = partitionToWriteTo?: writePartition
+                            val writeInvoked: Boolean
 
-                            if (partitionToWriteTo.second.retrievePairingsValue(it.key) == null) {
+                            writeInvoked = if (partitionToWriteTo.second.retrievePairingsValue(it.key) == null && _currentNumberOfEntries.get() < maxEntries) {
                                 _currentNumberOfEntries.incrementAndGet()
                                 partitionToWriteTo.second.createPairing(it.key, it.value!!)
+                                true
                             } else {
                                 partitionToWriteTo.second.updatePairingsValue(it.key, it.value!!)
+                                true
                             }
 
-                            writeOpResult = WriteOpResult.Completed(it, it.value, partitionToWriteTo.first, partitionToWriteTo.second)
+                            writeOpResult = if (writeInvoked)  {
+                                WriteOpResult.Completed(it, it.value, partitionToWriteTo.first, partitionToWriteTo.second)
+                            } else {
+                                WriteOpResult.NoOp(it)
+                            }
                         } else {
-                            val currentValue = partitionToWriteTo?.second?.retrievePairingsValue(it.key)
-                            partitionToWriteTo?.second?.deletePairing(it.key)
-
                             if (partitionToWriteTo == null) {
                                 writeOpResult = WriteOpResult.NoOp(it)
                             } else {
+                                val currentValue = partitionToWriteTo.second.retrievePairingsValue(it.key)
+                                partitionToWriteTo.second.deletePairing(it.key)
                                 _currentNumberOfEntries.decrementAndGet()
                                 writeOpResult = WriteOpResult.Completed(it,  currentValue!!, partitionToWriteTo.first, partitionToWriteTo.second)
                             }
                         }
 
                         if (writePartition.second.retrieveAllPairingsValues().count() > maxPartitionEntries) {
-                            var nextVacantPartition: StoredKeyValuePairings<Key, Value>? = null
+                            var nextVacantPartition: Pair<Partition?, StoredKeyValuePairings<Key, Value>?> = null to null
+                            var nextVacantResizeRatioPartition: Pair<Partition?, StoredKeyValuePairings<Key, Value>?> = null to null
 
-                            partitionsRefs.forEach { ref ->
+                            partitionsRefs.filter { it.first.id != writePartition.first.id }.forEach { ref ->
+                                if (ref.second.get() == null) {
+                                    val partitionRefToStoredKeyValueParing = StoredKeyValuePairings<Key, Value>(mutableMapOf(), JsonFileManager(toStoragePath(ref.first.id), Gson(), valueType))
+                                    ref.second.update(partitionRefToStoredKeyValueParing)
+                                }
                                 ref.second.get()?.let { map ->
-                                    if (map.retrieveAllPairingsValues().count() < (maxPartitionEntries - WRITE_OP_PARTITION_RESIZE_AMOUNT)) {
-                                        nextVacantPartition = map
+                                    if (nextVacantResizeRatioPartition.first == null && map.retrieveAllPairingsValues().count() < (maxPartitionEntries - resizePartitionEntries)) {
+                                        nextVacantResizeRatioPartition = ref.first to map
+                                    }
+
+                                    if (nextVacantPartition.first == null && map.retrieveAllPairingsValues().count() < maxPartitionEntries) {
+                                        nextVacantPartition = ref.first to map
                                     }
                                 }
                             }
 
                             val writePartitionKeysList = writePartition.second.getWrappedMap().keys.toList()
 
-                            if (nextVacantPartition == null) {
+                            if (nextVacantResizeRatioPartition.first == null && partitionsRefs.count() < maxPartitions) {
                                 var newPartition = Partition()
-                                while (partitions.find { it.id == newPartition.id } != null) {
+                                while (partitionsRefs.find { it.first.id == newPartition.id } != null) {
                                     newPartition = Partition()
                                 }
                                 val storedKeyValuePairings = StoredKeyValuePairings<Key, Value>(mutableMapOf(), JsonFileManager(toStoragePath(newPartition.id), Gson(), valueType))
                                 partitionsDatastore.createPairing(newPartition.id, newPartition)
-                                writePartition = newPartition to storedKeyValuePairings
                                 partitionsRefs.addLast(newPartition to StoredKeyValuePairingMutableWeakReference(storedKeyValuePairings))
+                                nextVacantResizeRatioPartition = newPartition to storedKeyValuePairings
                             }
 
-                            writePartitionKeysList.subList(writePartitionKeysList.size - WRITE_OP_PARTITION_RESIZE_AMOUNT.toInt(), writePartitionKeysList.size).let {
-                                it.forEach { key ->
-                                    writePartition.second.retrievePairingsValue(key)?.let { value ->
-                                        nextVacantPartition?.createPairing(key, value)
+                            if (nextVacantResizeRatioPartition.first != null) {
+                                writePartitionKeysList.subList(writePartitionKeysList.size - resizePartitionEntries, writePartitionKeysList.size).let {
+                                    it.forEach { key ->
+                                        writePartition.second.retrievePairingsValue(key)?.let { value ->
+                                            nextVacantResizeRatioPartition.second?.createPairing(key, value)
+                                        }
+                                        writePartition.second.deletePairing(key)
                                     }
-                                    writePartition.second.deletePairing(key)
                                 }
+                                partitionChangedFlow.emit(nextVacantResizeRatioPartition.first!! to nextVacantResizeRatioPartition.second!!)
+                            } else if (nextVacantPartition.first != null) {
+                                writePartitionKeysList.subList(writePartitionKeysList.size - (maxPartitionEntries - nextVacantPartition.second!!.retrieveAllPairingsValues().count()).toInt(), writePartitionKeysList.size).let {
+                                    it.forEach { key ->
+                                        writePartition.second.retrievePairingsValue(key)?.let { value ->
+                                            nextVacantPartition.second?.createPairing(key, value)
+                                        }
+                                        writePartition.second.deletePairing(key)
+                                    }
+                                }
+                                partitionChangedFlow.emit(nextVacantPartition.first!! to nextVacantPartition.second!!)
                             }
                         }
+
 
                         partitionToWriteTo?.let {
                             partitionChangedFlow.emit(it)
