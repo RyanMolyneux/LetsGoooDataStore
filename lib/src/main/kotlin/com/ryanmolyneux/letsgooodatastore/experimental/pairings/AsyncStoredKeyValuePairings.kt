@@ -8,6 +8,7 @@ import com.ryanmolyneux.letsgooodatastore.pairings.StoredKeyValuePairings
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
+import java.io.File
 
 import kotlin.collections.ArrayDeque
 import java.lang.ref.WeakReference
@@ -74,6 +75,16 @@ interface IAsyncMutableKeyValuePairings<Key, Value: AbsDatastoreEntry>: IAsyncKe
     suspend fun createPairing(key: Key, value: Value): Unit
 
     /**
+     * Behaves the same as [createPairing] only that the entry will target to be stored in a
+     * particular index of the data stores values collection, key point of note here will be
+     * that existing key updates will always take priority over index, meaning that a index
+     * will not allow a key to become duplicated in the collection & when using [TwoWayIterator]
+     * you should ensure that the value being written is not overwriting one which you do
+     * not expect it to, this can be done by first ensuring the pairing is non existent first.
+     */
+    suspend fun createPairing(index: Int, key: Key, value: Value)
+
+    /**
      * To be used to remove a key uniquely identified key to value pairing in the pairing collection
      * if it already exists, if not it will return null, the prior operations ability to occur
      * will vary based on what mutability state the key value pairings is currently in, any non
@@ -94,10 +105,13 @@ interface IAsyncMutableKeyValuePairings<Key, Value: AbsDatastoreEntry>: IAsyncKe
 
     /**
      * States that stored key value pairings instance will move between during its lifecycle.
+     *
+     * - [OPEN], Open to mutating method calls.
+     * - [CLOSED], Closed to any new mutation method calls.
      */
     enum class MutabilityState {
-        OPEN, // Open to mutating method calls.
-        CLOSED // Closed to any new mutation method calls.
+        OPEN,
+        CLOSED
     }
 }
 
@@ -133,6 +147,13 @@ interface TwoWayIterator<Value> {
      * note this is a shared flow of capacity size 1.
      */
     val current: SharedFlow<Value>
+
+
+    /**
+     * Current index the iterator has traversed two over the collection
+     * of values.
+     */
+    val currentIndex: Int
 
     /**
      * To be used to check whether there is a previous value in the collection
@@ -233,9 +254,12 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
             val partitions = partitionsDatastore.retrieveAllPairingsValues()
 
             if (partitions.isEmpty()) {
-                val partition = Partition()
-                writePartition = partition to StoredKeyValuePairings(mutableMapOf(), JsonFileManager(toStoragePath(partition.id), Gson(), valueType))
-                partitionsDatastore.createPairing(partition.id, partition)
+                var firstPartition = Partition()
+                while (File(toStoragePath(firstPartition.id)).exists()) {
+                    firstPartition = Partition()
+                }
+                writePartition = firstPartition to StoredKeyValuePairings(mutableMapOf(), JsonFileManager(toStoragePath(firstPartition.id), Gson(), valueType))
+                partitionsDatastore.createPairing(firstPartition.id, firstPartition)
             } else {
                 var nonFullPartitionFound = false
 
@@ -263,7 +287,8 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
                         var partitionToWriteTo = findPartition(it.key)
 
                         if (it is WriteOp.UpdateOp) {
-                            partitionToWriteTo = partitionToWriteTo?: writePartition
+                            writePartition = if (partitionToWriteTo == null && it.index?.let { findPartition(it) } != null) it.index?.let { findPartition(it) }!! else writePartition // TODO: cleanup, for now this is necessary when index is being used to ensure the new write partition is resized when necessary.
+                            partitionToWriteTo = partitionToWriteTo?: it.index?.let { findPartition(it) }  ?: writePartition
                             val writeInvoked: Boolean
 
                             writeInvoked = if (partitionToWriteTo.second.retrievePairingsValue(it.key) == null && _currentNumberOfEntries.get() < maxEntries) {
@@ -315,7 +340,7 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
 
                             if (nextVacantResizeRatioPartition.first == null && partitionsRefs.count() < maxPartitions) {
                                 var newPartition = Partition()
-                                while (partitionsRefs.find { it.first.id == newPartition.id } != null) {
+                                while (partitionsRefs.find { it.first.id == newPartition.id } != null && File(toStoragePath(newPartition.id)).exists()) {
                                     newPartition = Partition()
                                 }
                                 val storedKeyValuePairings = StoredKeyValuePairings<Key, Value>(mutableMapOf(), JsonFileManager(toStoragePath(newPartition.id), Gson(), valueType))
@@ -347,7 +372,6 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
                             }
                         }
 
-
                         partitionToWriteTo?.let {
                             partitionChangedFlow.emit(it)
                         }
@@ -363,7 +387,13 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
 
     override suspend fun createPairing(key: Key, value: Value) {
         if (isOpen()) {
-            fifoPartitionWriteOpQueue.put(WriteOp.UpdateOp(key, value))
+            fifoPartitionWriteOpQueue.put(WriteOp.UpdateOp(key = key, value = value))
+        }
+    }
+
+    override suspend fun createPairing(index: Int, key: Key, value: Value) {
+        if (isOpen()) {
+            fifoPartitionWriteOpQueue.put(WriteOp.UpdateOp(index, key, value))
         }
     }
 
@@ -445,6 +475,20 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
         }
     }
 
+    private fun findPartition(index: Int): Pair<Partition, StoredKeyValuePairings<Key, Value>>? {
+        val ref = partitionsRefs.getOrNull(index)
+        val currentPartition = ref?.first
+        var currentStoredKeyValuePairings = ref?.second?.get()
+
+        return if (currentPartition != null && currentStoredKeyValuePairings == null) {
+            currentStoredKeyValuePairings = StoredKeyValuePairings(mutableMapOf(), JsonFileManager(toStoragePath(ref.first.id), Gson(), valueType))
+            ref.second.update(currentStoredKeyValuePairings)
+            currentPartition to currentStoredKeyValuePairings
+        } else {
+            null
+        }
+    }
+
     private fun findPartitionWeak(key: Key): Pair<Partition, StoredKeyValuePairingMutableWeakReference>? {
         val strongRef = findPartition(key)
 
@@ -469,7 +513,7 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
      */
     private sealed class WriteOp<Key, Value: AbsDatastoreEntry>(val key: Key, val value: Value? = null) {
         class DeleteOp<Key, Value: AbsDatastoreEntry>(key: Key): WriteOp<Key, Value>(key)
-        class UpdateOp<Key, Value: AbsDatastoreEntry>(key: Key, value: Value): WriteOp<Key, Value>(key, value)
+        class UpdateOp<Key, Value: AbsDatastoreEntry>(val index: Int? = null, key: Key, value: Value): WriteOp<Key, Value>(key, value)
     }
 
     /**
@@ -505,6 +549,9 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
         private val _current = MutableSharedFlow<List<Value>>(1, 0)
         override val current: SharedFlow<List<Value>>
             get() = _current
+
+        override val currentIndex: Int
+            get() = currentPartitionIndex.get()
 
         init {
             storeBackgroundReadOpScope.launch {
