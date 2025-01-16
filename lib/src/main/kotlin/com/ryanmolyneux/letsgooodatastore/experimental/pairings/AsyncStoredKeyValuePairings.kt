@@ -186,6 +186,7 @@ interface TwoWayIterator<Value> {
  * read/write operations asynchronously on background threads.
  */
 class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStoredKeyValuePairings<Key, Value> {
+    private val setupComplete = MutableStateFlow<Boolean>(false)
     private val READ_OP_NUM_OF_THREADS_IN_POOL = 4
     private val WRITE_OP_NUM_OF_THREADS_IN_POOL = 1 // TODO update with larger capacity once JsonFileWriter.merge is made thread safe.
     private val WRITE_OP_PARTITION_RESIZE_RATIO = 0.20
@@ -275,6 +276,10 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
                         partitionsRefs.addLast(Pair(partition, StoredKeyValuePairingMutableWeakReference(storedKeyValuePairings)))
                     }
                     partitionChangedFlow.emit(partition to storedKeyValuePairings)
+                }
+
+                if (!::writePartition.isInitialized) {
+                    writePartition = partitionsRefs.first().first to partitionsRefs.first().second.get()!!
                 }
             }
             partitionsRefs.addFirst(writePartition.first to StoredKeyValuePairingMutableWeakReference(writePartition.second))
@@ -381,6 +386,7 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
                 }
             }
 
+            setupComplete.value = true
             untilCancelledDoUsPartWriteOps()
         }
     }
@@ -417,11 +423,16 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
 
     override fun retrievePairingsValue(key: Key) =
         combine(
-            flow { emit(findPartitionWeak(key)) },
+            flow {
+                     while (!setupComplete.value) { delay(50) } // TODO: create confirmation test for this retrieval to quickly from non fully setup async store k-v pairing & usage of writePartition.
+                     emit(findPartitionWeak(key))
+                 },
             partitionChangedFlow
         ) { initialPartition, lastPartitionRefreshed ->
-            val initialPartitionValueRetrieved: Value? = initialPartition?.second?.get()?.retrievePairingsValue(key)
-            val latestPartitionRefreshedValueRetrieved: Value? = lastPartitionRefreshed.second.retrievePairingsValue(key)
+            val initialPartitionValueRetrieved: Value? =
+                initialPartition?.second?.get()?.retrievePairingsValue(key)
+            val latestPartitionRefreshedValueRetrieved: Value? =
+                lastPartitionRefreshed.second.retrievePairingsValue(key)
             var valueToReturn: Value? = null
 
             if (latestPartitionRefreshedValueRetrieved != null) {
@@ -431,9 +442,9 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
             }
 
             valueToReturn
-    }.filterNotNull()
-     .distinctUntilChanged()
-     .flowOn(storeBackgroundReadOpDispatcher)
+        }.filterNotNull()
+            .distinctUntilChanged()
+            .flowOn(storeBackgroundReadOpDispatcher)
 
     override fun retrieveAllPairingsValues(): TwoWayIterator<List<Value>> {
         return StoredKeyValuePairingV2Iterator()
@@ -582,7 +593,7 @@ class AsyncStoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: AbsAsyncStored
         }
 
         override fun hasNext(): Boolean {
-            return (currentPartitionIndex.get() < partitionsRefs.size)
+            return (currentPartitionIndex.get() < (partitionsRefs.size - 1)) // TODO: Create confirmation test for this index out of bounds fix.
         }
 
         override suspend fun next() = runBlocking(storeBackgroundReadOpDispatcher) {

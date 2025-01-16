@@ -39,6 +39,7 @@ java {
             java.srcDirs("src/test/kotlin")
         }
     }
+    withSourcesJar()
 }
 
 dependencies {
