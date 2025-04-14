@@ -26,6 +26,12 @@ class StoredKeyValuePairings<Key, Value: AbsDatastoreEntry>: KeyValuePairings<Ke
         store(listOf(keyValueIsPairedWith));
     }
 
+    /**
+     * Deletes the underlying files the store uses, should be used if intending to cleanup
+     * underlying files before permanently discarding of the store itself.
+     */
+    fun deleteStoreFiles(): Boolean = jsonFileManager.delete()
+
     private fun store(listOfKeysWhoseValuesHaveBeenUpdated: List<Key>) {
         jsonFileManager.merge(getWrappedMap(), listOfKeysWhoseValuesHaveBeenUpdated);
     }

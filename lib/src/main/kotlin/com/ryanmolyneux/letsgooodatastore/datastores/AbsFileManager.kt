@@ -1,5 +1,6 @@
 package com.ryanmolyneux.letsgooodatastore.datastores
 
+import java.io.File
 import java.io.FileWriter;
 import java.io.FileReader;
 import java.net.URI
@@ -13,5 +14,9 @@ abstract class AbsFileManager: AbsDatastoreManager {
 
     open fun getNewFileReader(): FileReader {
         return FileReader(URI(getDatastoreUri()).path);
+    }
+
+    fun delete(): Boolean {
+        return File(URI(getDatastoreUri()).path).delete() && File(URI(getDataIntegrityProtectionDatastoreUri()).path).delete()
     }
 }
